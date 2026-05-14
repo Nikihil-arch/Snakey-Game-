@@ -16,6 +16,10 @@ justify-content: center;
 height: 100vh;
 font-family: Arial, sans-serif;
 color: white;
+overflow: hidden;
+touch-action: none;
+position: fixed;
+width: 100%;
 }
 
 h2 {
@@ -279,11 +283,17 @@ ctx.fill();
 let startX, startY;
 
 document.addEventListener("touchstart", e => {
+  e.preventDefault();
 startX = e.touches[0].clientX;
 startY = e.touches[0].clientY;
-});
+},{passive: false});
+
+document.addEventListener("touchmove", e=> {
+  e.preventDefault();
+}, {passive: false});
 
 document.addEventListener("touchend", e => {
+  e.preventDefault();
 let dx = e.changedTouches[0].clientX - startX;
 let dy = e.changedTouches[0].clientY - startY;
 
@@ -294,7 +304,7 @@ else if (dx < 0 && direction !== "right") direction = "left";
 if (dy > 0 && direction !== "up") direction = "down";
 else if (dy < 0 && direction !== "down") direction = "up";
 }
-});
+},{passive:false});
 </script>
 
 </body>
