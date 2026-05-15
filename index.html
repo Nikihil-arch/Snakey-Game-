@@ -98,6 +98,17 @@ letter-spacing: 1px;
 .stat-value {
 font-weight: 600;
 font-size: 20px;
+transition: transform 0.2s ease;
+}
+
+.stat-value.pulse {
+animation: scorePulse 0.4s ease;
+}
+
+@keyframes scorePulse {
+0% { transform: scale(1); }
+50% { transform: scale(1.2); }
+100% { transform: scale(1); }
 }
 
 .controls {
@@ -143,11 +154,12 @@ padding: 2px;
 canvas {
 background: #050505;
 border-radius: 20px;
-box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-border: 1px solid var(--border-color);
+box-shadow: 0 0 20px rgba(46, 125, 255, 0.4), 0 20px 60px rgba(0,0,0,0.6);
+border: 2px solid rgba(46, 125, 255, 0.6);
 touch-action: none;
 max-width: 100%;
 height: auto;
+transition: box-shadow 0.3s ease, border-color 0.3s ease;
 }
 
 .button-group {
@@ -219,6 +231,23 @@ z-index: 1000;
 
 #overlay.show {
 display: flex;
+animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+from { opacity: 0; }
+to { opacity: 1; }
+}
+
+@keyframes slideUp {
+from {
+transform: translateY(20px);
+opacity: 0;
+}
+to {
+transform: translateY(0);
+opacity: 1;
+}
 }
 
 #overlay > div {
@@ -229,6 +258,7 @@ border: 1px solid var(--border-color);
 text-align: center;
 max-width: 300px;
 box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+animation: slideUp 0.3s ease;
 }
 
 #overlay h2 {
@@ -335,6 +365,46 @@ let stepTime = 180;
 
 let accumulator = 0;
 let lastTime = 0;
+let animationTime = 0;
+
+// Particle system
+let particles = [];
+class Particle {
+constructor(x, y) {
+this.x = x;
+this.y = y;
+this.vx = (Math.random() - 0.5) * 8;
+this.vy = (Math.random() - 0.5) * 8;
+this.life = 1;
+this.decay = Math.random() * 0.02 + 0.015;
+this.size = Math.random() * 4 + 2;
+this.hue = Math.random() * 30 - 15;
+}
+
+update() {
+this.x += this.vx;
+this.y += this.vy;
+this.vy += 0.2;
+this.life -= this.decay;
+this.vx *= 0.95;
+}
+
+draw(ctx, cellWidth, cellHeight) {
+if (this.life <= 0) return;
+ctx.globalAlpha = this.life * 0.8;
+ctx.fillStyle = `hsl(${45 + this.hue}, 100%, 50%)`;
+ctx.beginPath();
+ctx.arc(this.x * cellWidth, this.y * cellHeight, this.size, 0, Math.PI * 2);
+ctx.fill();
+ctx.globalAlpha = 1;
+}
+}
+
+function createParticles(x, y, count = 8) {
+for (let i = 0; i < count; i++) {
+particles.push(new Particle(x, y));
+}
+}
 
 // Dynamic difficulty - speed increases with snake length
 const baseDifficulty = 180;
@@ -423,6 +493,9 @@ placeFood();
 function updateScore() {
 document.getElementById("score").textContent = score;
 document.getElementById("level").textContent = snake.length;
+const scoreEl = document.getElementById("score");
+scoreEl.classList.add("pulse");
+setTimeout(() => scoreEl.classList.remove("pulse"), 400);
 if (score > bestScore) {
 bestScore = score;
 localStorage.setItem("snakeBestScore", bestScore);
@@ -509,6 +582,7 @@ if (direction === "down") head.y++;
 // Check food collision
 if (head.x === food.x && head.y === food.y) {
 score++;
+createParticles(food.x, food.y, 12);
 updateScore();
 playSound(1000, 100);
 
@@ -553,18 +627,33 @@ return snake.some(seg => seg.x === head.x && seg.y === head.y);
 }
 
 function drawGrid() {
-ctx.strokeStyle = "rgba(255,255,255,0.04)";
-ctx.lineWidth = 0.5;
-for (let i = 0; i <= gridSize; i++) {
+const cellWidth = canvas.width / gridSize;
+const cellHeight = canvas.height / gridSize;
+ctx.fillStyle = "rgba(255,255,255,0.08)";
+for (let i = 0; i < gridSize; i++) {
+for (let j = 0; j < gridSize; j++) {
 ctx.beginPath();
-ctx.moveTo((i * canvas.width) / gridSize, 0);
-ctx.lineTo((i * canvas.width) / gridSize, canvas.height);
-ctx.stroke();
+ctx.arc(i * cellWidth + cellWidth / 2, j * cellHeight + cellHeight / 2, 1, 0, Math.PI * 2);
+ctx.fill();
+}
+}
+}
 
+function drawCornerLights() {
+const cellWidth = canvas.width / gridSize;
+const cellHeight = canvas.height / gridSize;
+const glowIntensity = Math.sin(animationTime * 0.005) * 0.3 + 0.7;
+ctx.fillStyle = `rgba(46, 125, 255, ${glowIntensity * 0.4})`;
+const corners = [
+{x: 0, y: 0},
+{x: canvas.width, y: 0},
+{x: 0, y: canvas.height},
+{x: canvas.width, y: canvas.height}
+];
+for (let corner of corners) {
 ctx.beginPath();
-ctx.moveTo(0, (i * canvas.height) / gridSize);
-ctx.lineTo(canvas.width, (i * canvas.height) / gridSize);
-ctx.stroke();
+ctx.arc(corner.x, corner.y, 15, 0, Math.PI * 2);
+ctx.fill();
 }
 }
 
@@ -572,18 +661,24 @@ function draw(alpha) {
 const cellWidth = canvas.width / gridSize;
 const cellHeight = canvas.height / gridSize;
 
+animationTime++;
+
 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
 drawGrid();
+drawCornerLights();
 
-// Draw food with glow
+// Draw food with pulse animation
+const foodPulse = Math.sin(animationTime * 0.02) * 0.4 + 0.8;
 ctx.fillStyle = "#ff4d4d";
 ctx.shadowColor = "#ff4d4d";
-ctx.shadowBlur = 12;
+ctx.shadowBlur = 12 * foodPulse;
 ctx.beginPath();
 const foodX = food.x * cellWidth + 2;
 const foodY = food.y * cellHeight + 2;
-ctx.roundRect(foodX, foodY, cellWidth - 4, cellHeight - 4, 6);
+const foodSize = (cellWidth - 4) * foodPulse;
+const foodOffset = (cellWidth - 4 - foodSize) / 2;
+ctx.roundRect(foodX + foodOffset, foodY + foodOffset, foodSize, foodSize, 6);
 ctx.fill();
 ctx.shadowBlur = 0;
 
@@ -598,9 +693,12 @@ let y = (prev.y + (curr.y - prev.y) * alpha) * cellHeight;
 let gradient = ctx.createLinearGradient(x, y, x + cellWidth, y + cellHeight);
 
 if (i === 0) {
-// Head - brighter color
+// Head - brighter color with glow
 gradient.addColorStop(0, "#a6ff7a");
 gradient.addColorStop(1, "#4dff88");
+const headGlow = Math.sin(animationTime * 0.01) * 8 + 12;
+ctx.shadowColor = "#4dff88";
+ctx.shadowBlur = headGlow;
 } else if (i === snake.length - 1) {
 // Tail - slightly darker
 gradient.addColorStop(0, "#1f8f4d");
@@ -616,6 +714,15 @@ ctx.beginPath();
 ctx.roundRect(x + 1, y + 1, cellWidth - 2, cellHeight - 2, 6);
 ctx.fill();
 }
+
+// Update and draw particles
+particles = particles.filter(p => p.life > 0);
+for (let particle of particles) {
+particle.update();
+particle.draw(ctx, cellWidth, cellHeight);
+}
+
+ctx.shadowBlur = 0;
 }
 
 // Keyboard controls for desktop
