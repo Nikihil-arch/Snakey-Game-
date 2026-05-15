@@ -280,7 +280,7 @@ max-width: 90%;
 <div class="stat-value" id="bestScore">0</div>
 </div>
 <div class="stat-item">
-<div class="stat-label">Level</div>
+<div class="stat-label">Length</div>
 <div class="stat-value" id="level">1</div>
 </div>
 </div>
@@ -288,13 +288,8 @@ max-width: 90%;
 
 <div class="controls">
 <div class="control-group">
-<label for="difficulty">Difficulty:</label>
-<select id="difficulty" onchange="changeDifficulty()">
-<option value="easy">Easy</option>
-<option value="normal" selected>Normal</option>
-<option value="hard">Hard</option>
-<option value="insane">Insane</option>
-</select>
+<label>Difficulty:</label>
+<span id="difficultyDisplay">Progressive</span>
 </div>
 <button class="theme-btn" onclick="toggleTheme()" title="Toggle Dark/Light">🌙</button>
 <button class="sound-btn" id="soundBtn" onclick="toggleSound()" title="Toggle Sound">🔊</button>
@@ -341,17 +336,20 @@ let stepTime = 180;
 let accumulator = 0;
 let lastTime = 0;
 
-const difficultySettings = {
-easy: 250,
-normal: 180,
-hard: 100,
-insane: 50
-};
+// Dynamic difficulty - speed increases with snake length
+const baseDifficulty = 180;
+function calculateStepTime() {
+const snakeLength = snake ? snake.length : 1;
+const speedIncrease = Math.floor((snakeLength - 1) * 3);
+return Math.max(50, baseDifficulty - speedIncrease);
+}
 
 // Set canvas size responsively
 function setCanvasSize() {
-const maxWidth = Math.min(window.innerWidth - 32, 700);
-const maxHeight = Math.min(window.innerHeight - 400, 700);
+const isDesktop = window.innerWidth > 1024;
+const maxLimit = isDesktop ? 900 : 700;
+const maxWidth = Math.min(window.innerWidth - 32, maxLimit);
+const maxHeight = Math.min(window.innerHeight - 350, maxLimit);
 const size = Math.min(maxWidth, maxHeight);
 canvas.width = size;
 canvas.height = size;
@@ -401,16 +399,15 @@ oscillator.stop(audioContext.currentTime + duration / 1000);
 }
 }
 
-// Difficulty change
-function changeDifficulty() {
-difficulty = document.getElementById("difficulty").value;
-stepTime = difficultySettings[difficulty];
-updateLevelDisplay();
-}
-
-function updateLevelDisplay() {
-const levelMap = {easy: 1, normal: 2, hard: 3, insane: 4};
-document.getElementById("level").textContent = levelMap[difficulty];
+// Update difficulty display based on snake length
+function updateDifficultyDisplay() {
+const snakeLength = snake ? snake.length : 1;
+let diffName = "Slow";
+if (snakeLength > 10) diffName = "Normal";
+if (snakeLength > 15) diffName = "Fast";
+if (snakeLength > 20) diffName = "Very Fast";
+if (snakeLength > 25) diffName = "Insane";
+document.getElementById("difficultyDisplay").textContent = diffName;
 }
 
 function reset() {
@@ -425,6 +422,7 @@ placeFood();
 
 function updateScore() {
 document.getElementById("score").textContent = score;
+document.getElementById("level").textContent = snake.length;
 if (score > bestScore) {
 bestScore = score;
 localStorage.setItem("snakeBestScore", bestScore);
@@ -493,6 +491,10 @@ requestAnimationFrame(loop);
 
 function update() {
 prevSnake = snake.map(s => ({...s}));
+
+// Update step time based on snake length (progressive difficulty)
+stepTime = calculateStepTime();
+updateDifficultyDisplay();
 
 // Update direction if next direction is valid
 direction = nextDirection;
@@ -657,7 +659,6 @@ else if (dy < -30 && direction !== "down") nextDirection = "up";
 }, {passive: false});
 
 // Initialize
-updateLevelDisplay();
 document.getElementById("soundBtn").textContent = soundEnabled ? "🔊" : "🔇";
 </script>
 
